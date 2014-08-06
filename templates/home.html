@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+    <script src="//code.jquery.com/ui/1.11.0/jquery-ui.js"></script>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.11.0/themes/smoothness/jquery-ui.css">
+</head>
+<body>
+
+<style type="text/css">
+    html {
+        font-family: Verdana, Arial, Helvetica, sans-serif; /* Семейство шрифта */
+    }
+
+    #data * {
+        border-color: black;
+        border-width: 1px;
+        border-style: solid;
+
+    }
+
+    #create_form {
+        border-color: black;
+    }
+
+    .left_menu {
+        height: 200px;
+        width: 200px;
+        float: left;
+    }
+
+    .content {
+        height: 200px;
+        width: 800px;
+        float: left;
+    }
+</style>
+
+<div class="left_menu">
+    <ul>
+        {% for model in models %}
+            {% if forloop.first %}
+                <li><a href="#" data-href="{{ model.url }}" class="active">{{ model.verbose_name }}</a></li>
+            {% else %}
+                <li><a href="#" data-href="{{ model.url }}">{{ model.verbose_name }}</a></li>
+            {% endif %}
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="content">
+    <table id="data">
+
+    </table>
+
+    <div id="create_form">
+
+    </div>
+</div>
+</body>
+</html>
+
+<script type="text/javascript">
+    date_types_regexp = {
+        'int': /^\d+$/,
+        'date': /^\d{4}-\d{2}-\d{2}$/
+    };
+
+    function is_valid_input(type, data) {
+        if (date_types_regexp[type] == undefined) return true;
+
+        return data.toString().search(date_types_regexp[type]) != -1;
+
+    }
+
+
+    $().ready(function () {
+        update_table($('a.active').attr('data-href'));
+
+        $('a').click(function () {
+            update_table($(this).attr('data-href'));
+        });
+
+    });
+
+
+    function table_input_changed(input) {
+        var new_value = input.val();
+        var tr = input.parent().parent();
+        input.parent().text(new_value);
+
+        var post_data = {};
+
+        $.each(tr.children(), function (i, td) {
+            if (!is_valid_input($(td).attr('data_type'), $(td).text())) {
+                alert('Некорректный ввод');
+                post_data = undefined;
+                return false;
+            }
+            post_data[$(td).attr('data_name')] = $(td).text();
+        });
+        if (post_data == undefined) return;
+
+        $.post($('#data').attr('model_url'), post_data, function (data) {
+            $.each(tr.children(), function (i, td) {
+                $(td).attr('data_value', $(td).text())
+            });
+        });
+    }
+
+
+    function td_dbclick() {
+        var td = $(this);
+        var old_value = td.text();
+        var input = $('<input data_type="' + td.attr('data_type') + '" type="text" value="' + old_value + '"/>');
+
+        if (td.attr('data_type') == 'date') {
+            input.datepicker({dateFormat: "yy-mm-dd",
+                onClose: function (d) {
+                    if (d != '' && d != old_value) {
+                        table_input_changed(input);
+                    }
+
+                    td.text(d || old_value);
+                    td.dblclick(td_dbclick);
+                }});
+        }
+
+        td.text('').append(input);
+        td.unbind('dblclick');
+
+        input.keypress(function (e) {
+            if (e.which == 13) {
+                table_input_changed($(this));
+            }
+        });
+
+        input.focus();
+
+        if ($(input).attr('data_type') != 'date') {
+            input.blur(function () {
+                td.text(old_value);
+                td.dblclick(td_dbclick);
+            })
+        }
+
+    }
+
+    function create_new() {
+        var post_data = {};
+        var form = $(this).parent();
+        var model_url = $('#data').attr('model_url');
+
+        $.each(form.find('input[type="text"][value!=""]'), function (i, input) {
+            if (!is_valid_input($(input).attr('data_type'), $(input).val())) {
+                alert('Некорректный ввод');
+                post_data = undefined;
+                return false;
+            }
+            post_data[$(input).attr('name')] = $(input).val();
+        });
+        if (post_data == undefined) return;
+
+        $.post(model_url, post_data, function (data) {
+            $.each(form.children('input[type="text"][value!=""]'), function (i, input) {
+                        $(input).val('');
+                    }
+            );
+            update_table(model_url);
+
+        });
+
+    }
+
+
+
+
+    function update_table(url) {
+        $('#data').empty();
+        var form = $('<form></form>');
+
+        $.getJSON(url, function (data) {
+            var fields = data.fields;
+            var table = $('#data');
+            table.attr('model_url', url);
+
+            // table header and form
+            var row = $("<tr></tr>");
+            $.each(fields, function (i, field) {
+                row.append($('<th></th>').text(field.title));
+                if (field.type === null) return;
+                var label = $('<label for="' + field.name + '">' + field.title + '</label>');
+                var input = $('<input type="text" name="' + field.name + '" data_type="' + field.type + '">');
+                form.append($('<p></p>').append(input).append(label));
+            });
+            form.append($('<input type="button" value="Добавить">').click(create_new));
+            $("#create_form").html('<p>' + data.title + '</p>').append(form);
+            $('input[data_type="date"]').datepicker({ dateFormat: "yy-mm-dd" });
+
+
+            table.append(row);
+
+            //table rows
+            $.each(data.objects, function (i, obj) {
+                var row = $("<tr></tr>");
+                $.each(fields, function (i, field) {
+                    row.append($('<td>' + obj[field.name] + '</td>').attr('data_value', obj[field.name])
+                            .attr('data_type', field.type)
+                            .attr('data_name', field.name).dblclick(td_dbclick));
+                });
+                table.append(row)
+
+            });
+        });
+
+    }
+
+</script>
