@@ -36,6 +36,10 @@
         width: 800px;
         float: left;
     }
+
+    #errors {
+        color: red;
+    }
 </style>
 
 <div class="left_menu">
@@ -54,6 +58,8 @@
     <table id="data">
 
     </table>
+
+    <div id="errors"></div>
 
     <div id="create_form">
 
@@ -87,6 +93,7 @@
 
 
     function table_input_changed(input) {
+        $("#errors").text("");
         var new_value = input.val();
         var tr = input.parent().parent();
         input.parent().text(new_value);
@@ -95,13 +102,19 @@
 
         $.each(tr.children(), function (i, td) {
             if (!is_valid_input($(td).attr('data_type'), $(td).text())) {
-                alert('Некорректный ввод');
+                $(td).css("background", "red");
                 post_data = undefined;
-                return false;
+            } else {
+                $(td).css("background", "white");
             }
-            post_data[$(td).attr('data_name')] = $(td).text();
+            if (post_data != undefined) {
+                post_data[$(td).attr('data_name')] = $(td).text();
+            }
         });
-        if (post_data == undefined) return;
+        if (post_data == undefined) {
+            $("#errors").text("Введите корректные данные.");
+            return;
+        }
 
         $.post($('#data').attr('model_url'), post_data, function (data) {
             $.each(tr.children(), function (i, td) {
@@ -134,6 +147,7 @@
         input.keypress(function (e) {
             if (e.which == 13) {
                 table_input_changed($(this));
+                td.dblclick(td_dbclick);
             }
         });
 
@@ -175,11 +189,10 @@
     }
 
 
-
-
     function update_table(url) {
         $('#data').empty();
         var form = $('<form></form>');
+        $("#errors").text("");
 
         $.getJSON(url, function (data) {
             var fields = data.fields;
@@ -199,16 +212,19 @@
             $("#create_form").html('<p>' + data.title + '</p>').append(form);
             $('input[data_type="date"]').datepicker({ dateFormat: "yy-mm-dd" });
 
-
             table.append(row);
 
             //table rows
             $.each(data.objects, function (i, obj) {
                 var row = $("<tr></tr>");
                 $.each(fields, function (i, field) {
-                    row.append($('<td>' + obj[field.name] + '</td>').attr('data_value', obj[field.name])
+                    var td = $('<td>' + obj[field.name] + '</td>').attr('data_value', obj[field.name])
                             .attr('data_type', field.type)
-                            .attr('data_name', field.name).dblclick(td_dbclick));
+                            .attr('data_name', field.name);
+                    row.append(td);
+                    if (!field.read_only) {
+                        td.dblclick(td_dbclick);
+                    }
                 });
                 table.append(row)
 

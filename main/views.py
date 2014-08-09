@@ -39,7 +39,8 @@ def model(request, model_name):
         json_data = {"objects": list(),
                      "fields": [{'name': f.name,
                                  'title': f.verbose_name,
-                                 'type': field_type_names.get(f.__class__)}
+                                 'type': field_type_names.get(f.__class__),
+                                 'read_only': False if field_type_names.get(f.__class__) else True}
                                 for f in model_class._meta.fields],
                      "title": model_class._meta.verbose_name}
 
