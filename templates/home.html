@@ -99,26 +99,34 @@
         input.parent().text(new_value);
 
         var post_data = {};
+        var has_incorrect_fields = false;
+        var row_not_synced = false;
 
         $.each(tr.children(), function (i, td) {
             if (!is_valid_input($(td).attr('data_type'), $(td).text())) {
                 $(td).css("background", "red");
-                post_data = undefined;
+                post_data[$(td).attr('data_name')] = $(td).attr('data_value');
+                has_incorrect_fields = true;
             } else {
                 $(td).css("background", "white");
-            }
-            if (post_data != undefined) {
                 post_data[$(td).attr('data_name')] = $(td).text();
+                if ($(td).attr('data_value') != $(td).text()) {
+                    row_not_synced = true;
+                }
             }
         });
-        if (post_data == undefined) {
+        if (has_incorrect_fields) {
             $("#errors").text("Введите корректные данные.");
+        }
+        if (!row_not_synced) {
             return;
         }
 
         $.post($('#data').attr('model_url'), post_data, function (data) {
             $.each(tr.children(), function (i, td) {
-                $(td).attr('data_value', $(td).text())
+                if (is_valid_input($(td).attr('data_type'), $(td).text())) {
+                    $(td).attr('data_value', $(td).text())
+                }
             });
         });
     }
